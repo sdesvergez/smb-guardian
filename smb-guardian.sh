@@ -26,7 +26,7 @@ source "$CONFIG_FILE"
 CHECK_INTERVAL="${CHECK_INTERVAL:-30}"
 MAX_RETRIES="${MAX_RETRIES:-3}"
 RETRY_DELAY="${RETRY_DELAY:-10}"
-STALE_TIMEOUT="${STALE_TIMEOUT:-5}"
+STALE_TIMEOUT="${STALE_TIMEOUT:-8}"
 NOTIFICATIONS_ENABLED="${NOTIFICATIONS_ENABLED:-true}"
 LOG_FILE="${LOG_FILE:-$HOME/Library/Logs/smb-guardian.log}"
 
@@ -121,14 +121,6 @@ force_unmount() {
 }
 
 mount_share() {
-    mkdir -p "$MOUNT_POINT"
-
-    # Si SMB_USER est vide, on monte sans utilisateur dans l'URL - c'est le
-    # cas si l'entree Trousseau a ete enregistree sans compte explicite
-    # (verifiable avec : security find-internet-password -s "$NAS_HOST").
-    # On ne tente qu'UNE seule forme : un essai qui echoue perturbe la
-    # session SMB partagee avec le serveur et peut deconnecter les autres
-    # partages montes depuis le meme NAS.
     local smb_url
     if [[ -n "$SMB_USER" ]]; then
         smb_url="//${SMB_USER}@${NAS_HOST}/${SMB_SHARE}"
@@ -137,7 +129,24 @@ mount_share() {
     fi
 
     log "INFO" "Tentative de montage de ${smb_url} sur ${MOUNT_POINT}"
-    run_with_timeout 15 /sbin/mount_smbfs -N "$smb_url" "$MOUNT_POINT" 2>>"$LOG_FILE"
+
+    local i
+    for i in 1 2 3; do
+        mkdir -p "$MOUNT_POINT" 2>>"$LOG_FILE"
+        if [[ ! -d "$MOUNT_POINT" ]]; then
+            log "WARN" "Le point de montage ${MOUNT_POINT} n'a pas pu etre cree (tentative ${i}/3)"
+            sleep 1
+            continue
+        fi
+        if run_with_timeout 15 /sbin/mount_smbfs -N "$smb_url" "$MOUNT_POINT" 2>>"$LOG_FILE"; then
+            return 0
+        fi
+        # Sous /Volumes, macOS peut supprimer un point de montage vide
+        # tout juste cree (course avec le processus d'automontage) : on
+        # recree et on retente rapidement avant d'abandonner ce cycle.
+        sleep 1
+    done
+    return 1
 }
 
 attempt_restore() {
