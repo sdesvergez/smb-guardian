@@ -1,7 +1,7 @@
 # smb-guardian
 
 Service macOS (LaunchAgent) qui monte, surveille et restaure automatiquement
-un point de montage SMB vers un NAS Unifi Pro.
+un point de montage SMB vers un NAS.
 
 ## Fonctionnement
 
@@ -22,8 +22,7 @@ un point de montage SMB vers un NAS Unifi Pro.
   deconnexion detectee, puis a la restauration reussie ou a l'echec final.
 - **Integration Home Assistant (optionnelle)** : si `HA_WEBHOOK_URL` est
   renseigne dans la configuration, chaque evenement (deconnexion,
-  restauration, echec) est aussi envoye en POST JSON a ce webhook - sur le
-  meme principe que vos services `devrg-*` existants.
+  restauration, echec) est aussi envoye en POST JSON a ce webhook.
 
 ## Prerequis
 
