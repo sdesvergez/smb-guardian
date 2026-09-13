@@ -122,10 +122,22 @@ force_unmount() {
 
 mount_share() {
     mkdir -p "$MOUNT_POINT"
-    log "INFO" "Tentative de montage de //${SMB_USER}@${NAS_HOST}/${SMB_SHARE} sur ${MOUNT_POINT}"
+
     # -N : ne jamais demander le mot de passe de facon interactive (le
-    # Trousseau doit deja contenir l'identifiant correspondant, voir README)
-    run_with_timeout 15 /sbin/mount_smbfs -N "//${SMB_USER}@${NAS_HOST}/${SMB_SHARE}" "$MOUNT_POINT" 2>>"$LOG_FILE"
+    # Trousseau doit deja contenir l'identifiant correspondant, voir README).
+    # La recherche dans le Trousseau se fait par (utilisateur, serveur) : si
+    # l'entree a ete creee sans utilisateur explicite dans l'URL (frequent
+    # avec Finder quand on se connecte sans taper de nom de compte, ou avec
+    # certains NAS a mot de passe de partage plutot qu'a compte utilisateur),
+    # la forme "utilisateur@serveur" ne matche pas et il faut retomber sur
+    # la forme sans utilisateur.
+    log "INFO" "Tentative de montage de //${SMB_USER}@${NAS_HOST}/${SMB_SHARE} sur ${MOUNT_POINT}"
+    if run_with_timeout 15 /sbin/mount_smbfs -N "//${SMB_USER}@${NAS_HOST}/${SMB_SHARE}" "$MOUNT_POINT" 2>>"$LOG_FILE"; then
+        return 0
+    fi
+
+    log "WARN" "Echec avec utilisateur explicite dans l'URL - nouvelle tentative sans utilisateur (//${NAS_HOST}/${SMB_SHARE}), pour correspondre a une entree Trousseau enregistree sans compte explicite"
+    run_with_timeout 15 /sbin/mount_smbfs -N "//${NAS_HOST}/${SMB_SHARE}" "$MOUNT_POINT" 2>>"$LOG_FILE"
 }
 
 attempt_restore() {
