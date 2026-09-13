@@ -121,34 +121,37 @@ force_unmount() {
 }
 
 mount_share() {
-    local smb_url
-    if [[ -n "$SMB_USER" ]]; then
-        smb_url="//${SMB_USER}@${NAS_HOST}/${SMB_SHARE}"
-    else
-        smb_url="//${NAS_HOST}/${SMB_SHARE}"
+    local smb_url_open="smb://${NAS_HOST}/${SMB_SHARE}"
+    [[ -n "$SMB_USER" ]] && smb_url_open="smb://${SMB_USER}@${NAS_HOST}/${SMB_SHARE}"
+
+    if [[ "$MOUNT_POINT" == /Volumes/* ]]; then
+        # Sous /Volumes, le nom du point de montage est reserve par
+        # l'automonteur macOS des qu'il a deja servi (mkdir manuel refuse
+        # avec "Permission denied" meme si rien n'y est monte). On passe
+        # donc par le meme mecanisme que le Finder : `open smb://...`
+        # declenche l'automonteur, qui consulte le Trousseau comme le
+        # ferait Cmd+K. Le montage est asynchrone : on attend qu'il
+        # apparaisse (jusqu'a 15s).
+        log "INFO" "Tentative de montage (via automonteur) de ${smb_url_open} sur ${MOUNT_POINT}"
+        open "$smb_url_open" 2>>"$LOG_FILE"
+
+        local waited=0
+        while (( waited < 15 )); do
+            is_mount_present && return 0
+            sleep 1
+            waited=$(( waited + 1 ))
+        done
+        return 1
     fi
 
+    # Point de montage hors /Volumes (ex: ~/NAS-Unifi) : dossier classique,
+    # aucune contrainte particuliere, mount_smbfs direct.
+    local smb_url="//${NAS_HOST}/${SMB_SHARE}"
+    [[ -n "$SMB_USER" ]] && smb_url="//${SMB_USER}@${NAS_HOST}/${SMB_SHARE}"
+    mkdir -p "$MOUNT_POINT"
     log "INFO" "Tentative de montage de ${smb_url} sur ${MOUNT_POINT}"
-
-    local i
-    for i in 1 2 3; do
-        mkdir -p "$MOUNT_POINT" 2>>"$LOG_FILE"
-        if [[ ! -d "$MOUNT_POINT" ]]; then
-            log "WARN" "Le point de montage ${MOUNT_POINT} n'a pas pu etre cree (tentative ${i}/3)"
-            sleep 1
-            continue
-        fi
-        if run_with_timeout 15 /sbin/mount_smbfs -N "$smb_url" "$MOUNT_POINT" 2>>"$LOG_FILE"; then
-            return 0
-        fi
-        # Sous /Volumes, macOS peut supprimer un point de montage vide
-        # tout juste cree (course avec le processus d'automontage) : on
-        # recree et on retente rapidement avant d'abandonner ce cycle.
-        sleep 1
-    done
-    return 1
+    run_with_timeout 15 /sbin/mount_smbfs -N "$smb_url" "$MOUNT_POINT" 2>>"$LOG_FILE"
 }
-
 attempt_restore() {
     local attempt=1
     while (( attempt <= MAX_RETRIES )); do
