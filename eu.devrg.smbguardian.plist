@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>eu.devrg.smbguardian</string>
+
+    <!-- Script principal (chemin substitue par install.sh) -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__SCRIPT_PATH__</string>
+    </array>
+
+    <!-- Lance une verification immediate au chargement de l'agent
+         (login, redemarrage du service, reveil si combine a WatchPaths) -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Verification periodique (valeur substituee par install.sh
+         a partir de CHECK_INTERVAL dans smb-guardian.conf) -->
+    <key>StartInterval</key>
+    <integer>__CHECK_INTERVAL__</integer>
+
+    <!-- Declenche aussi une verification immediate des qu'un changement
+         de configuration reseau est detecte (Wi-Fi, Ethernet, DNS...),
+         ce qui couvre la plupart des reveils/reconnexions -->
+    <key>WatchPaths</key>
+    <array>
+        <string>/Library/Preferences/SystemConfiguration/preferences.plist</string>
+        <string>/Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist</string>
+        <string>/var/run/resolv.conf</string>
+    </array>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>StandardOutPath</key>
+    <string>__LOG_DIR__/smb-guardian.launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>__LOG_DIR__/smb-guardian.launchd.log</string>
+</dict>
+</plist>
